@@ -1,0 +1,109 @@
+---
+- name: Install and configure Jenkins
+  hosts: 68.183.121.233
+  become: true  
+
+  tasks:
+    - name: Install Jenkins repository
+      yum_repository:
+        name: jenkins
+        description: Jenkins Official Repository
+        baseurl: https://pkg.jenkins.io/redhat-stable
+        gpgcheck: yes
+        gpgkey: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+        state: present
+
+    - name: Install Jenkins
+      package:
+        name: jenkins
+        state: present
+
+    - name: Start Jenkins service
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
+
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: 8080
+        state: started
+      delegate_to: localhost
+
+    - name: Get Jenkins initial admin password
+      command: cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: jenkins_initial_password
+
+    - name: Display Jenkins initial admin password
+      debug:
+        var: jenkins_initial_password.stdout
+      when: jenkins_initial_password.stdout is defined
+
+    - name: Install Docker and Kubernetes plugins
+      jenkins_plugin:
+        name: "{{ item }}"
+      loop:
+        - docker-plugin
+        - kubernetes
+
+    - name: Configure Jenkins proxy settings
+      blockinfile:
+        path: /var/lib/jenkins/hudson.model.UpdateCenter.xml
+        block: |
+          <sites>
+            <site>
+              <id>default</id>
+              <url>https://updates.jenkins.io/update-center.json</url>
+            </site>
+          </sites>
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+
+    - name: Upload and configure signed certificate
+      copy:
+        src: /path/to/your/signed/certificate.crt
+        dest: /var/lib/jenkins/your-certificate.crt
+      notify: Reload Jenkins
+
+  handlers:
+    - name: Reload Jenkins
+      command: systemctl restart jenkins
+
+
+
+
+
+
+
+#  ---
+# - name: install jenkins
+#   hosts: 68.183.121.233
+#   become: yes
+#   become_user: root
+#   tasks:
+#     - name: yum update
+#       yum:
+#         name: '*'
+#         state: latest
+#     - name: add the jenkins repo
+#       get_url:
+#         url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+#         dest: /etc/yum.repos.d/jenkins.repo
+#     - name: import a key file from jenkins-ci
+#       ansible.builtin.rpm_key:
+#         state: present
+#         key: https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+#     - name: yum update
+#       yum:
+#         name: '*'
+#         state: latest
+#     - name: install java
+#       shell: amazon-linux-extras install java-openjdk11 -y
+#     - name: install jenkins
+#       yum:
+#         name: jenkins
+#         state: latest
+#     - name: start jenkins
+#       ansible.builtin.systemd:
+#         enabled: yes
+#         name: jenkins
+#         state: started
