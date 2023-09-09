@@ -52,4 +52,9 @@
          var: jenkins_initial_password.stdout
        when: jenkins_initial_password.stdout is defined
 
-      
+     - name: Install Docker and Kubernetes plugins
+       jenkins_plugin:
+         name: "{{ item }}"
+       loop:
+         - docker-plugin
+         - kubernetes  
